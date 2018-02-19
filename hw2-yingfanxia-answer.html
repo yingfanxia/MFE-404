@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <title>hw2-Evtstudy.html</title>
+  </head>
+
+  <meta name="KEYWORDS" content="Evtstudy" />
+  <meta name="AUTHOR" content="Yingfan Xia" />
+
+  <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel="stylesheet" href="hw.css" />
+
+
+  <body>
+
+    <h1  align="center"> Homework 2（Evtstudy）, by Yingfan Xia, Jan 26, 2018 </h1>
+
+    <h2> Executive Summary </h2>
+
+    <p>  Using S&amp;P500 daily returns and daily returns and EX dividend data of all the stocks on CRSP ranging from 1/1/2010 through 12/30/2016, I calculate the excess mean rates of return from -20 days though +20 days of the ex dividend payment date and find out that <strong>the excess mean rates of return don't have a clear trend, the magnitude of it is relatively small, but the mean excess rates of return for 1,2,3 days after the ex dividend date tend to be quite negative so that there may be some kind of relationship between them.</strong>
+	</p>
+
+    <h2> Full Description </h2>
+
+    <h3> Data Sources</h3>
+	
+	<p> Our data range is from 1/1/2010 to 12/30/2016.
+	<br /> <strong>S&amp;P500 daily returns</strong> are downloaded from WRDS CRSP-Index-S&amp;P500 Indexes-Index File on S&amp;P500-Value-Weighted Return (includes distributions).
+	<br /> <strong>Daily returns and EX Dividend data</strong> for all the stocks are downloaded from WRDS CRSP-Stock/Security Files-Daily Stock File, the variables that I have chosen are:
+	<br /> <strong>CRSP Permanent Company Number</strong>: a unique permanent identifier assigned by CRSP to all companies with issues on a CRSP file. This number is permanent for all securities issued by this company regardless of name changes.
+	<br /> <strong>Dividend Cash Amount</strong>: the US dollar value per share of distributions resulting from cash dividends, spin-offs, mergers, exchanges, reorganizations, liquidations, and rights issues.
+	<br /> <strong>Holding Period Return</strong>: the change in the total value of an investment in a common stock over some period of time per dollar of initial investment.
+	</p>
+	
+	<h3> Data Analysis</h3>
+	
+	<p> The critical point of this homework is how to clean and manipulate with the data efficiently and properly. 
+	<br /> Cause we have in total about 12 million data for daily returns of all stocks, it would be extremely time consuming if we run a for loop on all the data points. As a result, I try to just focus on the ex dividend points.
+	<br /> The process of my method is as follows:
+	<br /> What we have is a Stock file that contains the dates, dividends, stock returns and company numbers. And a S&amp;P500 file that contains the value-weighted returns used as a benchmark.
+	<br /> First, I delete all the NA points for the returns column in the Stock file. Then, I store all the index in the Stock file that the dividend is not zero so that I have taken out the index for all the ex dividend date. After that, to make sure that during the time zone of -20days through +20 days of the ex dividend date the returns are not NA, I match the date of index in the Stock file with the date in the S&amp;P500 file and find the matching index in S&amp;P500 file. Cause S&amp;P500 don't have NA points during all time period. We compare the index of Stock file  -(+)20 with the index of S&amp;P500 file -(+）20. If they are not the same, then it means there are NA points for the Stock during this period.
+	<br /> By using this for loop, I get the valid index of the ex dividend points that are decent for us to use. Thus, we can take out the returns of these points and figure out the excess returns by subtracting the rate of returns on that date for S&amp;P500. At last, we calculate the mean of each day and the result is in the Result Analysis part. 
+	</p>
+	
+	<h3> Result Analysis</h3>
+	<p> From the figure below, we can see that the mean excess rates of return from -20 days through 20 days of the ex dividend date doesn't have a clear trend. And the magnitude of the rates is at 0.01% level which is relative small.
+    <br /> However, we can see that mean excess rates of return for 1,2,3 days after the ex dividend date tend to be quite negative so that there may be some kind of relationship between them. 
+	</p>
+
+    <h2> Tables and Figures </h2>
+
+      <img src="https://raw.githubusercontent.com/yingfanxia/MFE-404/master/barplot.png">
+	  <p> The red bar is excess mean rate of return of the EX dividend date. </p>
+
+    <h2> Computer Code </h2>
+
+    <pre>
+	library(data.table)
+
+	SP500 <- fread("C:/Users/13000/Desktop/S&P500.csv",sep=",",header=T)
+	AllStock <- fread("C:/Users/13000/Desktop/AllStock.csv",sep=",",header=T)
+
+	AllStock$RET <- as.numeric(AllStock$RET)
+	AllStock <- AllStock[!is.na(RET),]
+
+	row_dividend <- which(!is.na(AllStock$DIVAMT))
+	n <- length(row_dividend)
+
+	valid_stock <- rep(-1,n)
+	valid_SP500 <- rep(-1,n)
+	k <- 1
+
+	for(i in 1:n){
+		j <- row_dividend[i]
+		row_SP <- which(SP500$caldt == AllStock$date[j])
+		if(length(row_SP)==0) next
+		else if((row_SP < 21) | (row_SP > (length(SP500$caldt)-20))) next
+		else if(SP500$caldt[row_SP-20]!=AllStock$date[j-20]) next
+		else if(SP500$caldt[row_SP+20]!=AllStock$date[j+20]) next
+		else if(AllStock$PERMNO[j-20]!=AllStock$PERMNO[j+20]) next
+		else{
+			valid_stock[k] <- j
+			valid_SP500[k] <- row_SP
+			k <- k + 1
+		}
+	}
+
+	valid_stock <- valid_stock[valid_stock!=-1]
+	valid_SP500 <- valid_SP500[valid_SP500!=-1]
+	m <- length(valid_stock)
+
+	excess_return <- matrix(0,nrow=41,ncol=m)
+	for(i in 1:41){
+		excess_return[i,] <- AllStock$RET[valid_stock+i-21] - SP500$vwretd[valid_SP500+i-21]
+	}
+
+	average_return <- rep(0,41)
+	for(i in 1:41){
+		average_return[i] <- mean(excess_return[i,]) * 100
+	}
+
+	t <- seq(-20,20,1)
+	plotTop <- max(average_return) * 1.2
+	plotBottom <- min(average_return) * 1.2
+	colors <- rep("royalblue",41)
+	colors[21] <- "red"
+
+	barCenters <- barplot(height = average_return,
+                      names.arg = as.character(t),
+                      beside = true, las = 2,
+                      ylim = c(plotBottom, plotTop),
+                      xaxt = "n",
+                      main = "mean excess rates of return from -20days through 20 days for dividend",
+                      main = "mean excess rates of return from -20days through 20 days for dividend",
+                      ylab = "Excess returns(%)",
+                      col= colors)
+
+    </pre>
+
+  </body>
+
+</html>

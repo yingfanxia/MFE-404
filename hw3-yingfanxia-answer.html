@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+  <head>
+    <title>hw3-Annretset.html</title>
+	<link rel="stylesheet" href="http://www.ivo-welch.info/teaching/hw.css" />
+  </head>
+
+  <meta name="KEYWORDS" content="Annretset" />
+  <meta name="AUTHOR" content="Yingfan Xia" />
+
+  <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+  <body>
+
+    <h1> Homework 3（Annretset）, by Yingfan Xia, Feb 1, 2018 </h1>
+
+    <h2> Executive Summary </h2>
+
+    <p>  Using the monthly data of all the stocks that ranging from 1925 to 2016, I create a datatable in R to store the annual data of each stock:Perm, Ticker, Cusip, Year, Marketcap and Rate of Retrun. The code has a running time for about 4mins and outputs a .csv file that is 23.0 MB.
+	</p>
+
+    <h2> Full Description </h2>
+
+    <h3> Data Sources</h3>
+	
+	<p> Our data range is from 12/31/1925 to 12/30/2016.
+	<br /> Monthly data of all stocks are downloaded from WRDS CRSP-Stock/Security Files-Monthly Stock File.
+	<br /> The variables I have chosen are: CRSP Permanent Company Number, Ticker, Cusip, Price, Number of Shares Outstanding and Holding Period Return.
+	</p>
+	
+	<h3> Data Analysis</h3>
+	
+	<p> While establishing the annual data set, I take the last day in that year's Perm Number, Ticker, Cusip and Year to represent that year's information. These data could be easily obtained when you find the last day of each year.
+	<br /> For Marketcap, I use the price(closing price) times number of shares outstanding to calculate the market capital and choose the last valid data in that year to represent the yearly data. The unit of marketcap is in thousands.
+	<br /> For yearly returns, I use the monthly returns(holding period returns) and compound it to get the yearly returns. The unit of yearly returns is 1.
+	</p>
+	
+	<h3> Result Analysis</h3>
+	<p> I finally generate a .csv file that have 372470 rows and 6 columns to store the annual data of all the stocks ranging from 1925 to 2016.
+	<br /> The link of the .csv file is: <a href="https://github.com/yingfanxia/MFE-404/blob/master/Annualret.csv">Annualret</a>.
+	</p>
+
+    <h2> Tables and Figures </h2>
+
+      <p>  The first 33 lines are as flows: </p>
+	  <p align="center"><img src="https://raw.githubusercontent.com/yingfanxia/MFE-404/master/Annualret.png" height="800" width="600"> </p>
+
+    <h2> Computer Code </h2>
+
+    <pre>
+	library(zoo)
+	library(xts)
+	library(data.table)
+	library(lubridate)
+
+	stock <- fread("C:/Users/13000/Desktop/Stock.csv",sep=",",header=T)
+	stock$date <- ymd(stock$date)
+	stock$RET <- as.numeric(stock$RET)
+	stock$RET[is.na(stock$RET)] <- 0
+	stock[,MCAP:=abs(PRC*SHROUT)]
+	stock <- stock[,c(1,3,5,2,10,8)]
+	stock <- na.omit(stock)
+	annual <- stock[1,]
+	begin <- 1
+
+	for(i in 1:length(stock$date)){
+		if(stock$PERMNO[i]==stock$PERMNO[begin]) next
+		else{
+			sub <- stock[begin:(i-1),]
+			begin <- i
+			ep <- endpoints(sub$date,"years")
+			fp <- ep+1
+			ep <- ep[-1]
+			fp <- fp[-length(fp)]
+			ry <- rep(0,length(ep))
+			for(j in 1:length(ep)){
+				rm <- sub$RET[fp[j]:ep[j]]
+				ry[j] <- prod(rm+1)-1
+			}
+			sub_y <- sub[ep]
+			sub_y$RET <- ry
+			annual <- rbind(annual,sub_y)
+		}
+	}
+
+	annual <- annual[-1]
+	annual$RET[annual$RET==0] <- NA
+	database <- na.omit(annual)
+	database$date <- year(database$date)
+	colnames(database)[4] <- "YEAR"
+	write.csv(database, file = "C:/Users/13000/Desktop/Annualret.csv")
+
+    </pre>
+
+  </body>
+
+</html>
